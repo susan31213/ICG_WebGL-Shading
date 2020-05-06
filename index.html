@@ -1,0 +1,440 @@
+<html>
+
+<head>
+<title>ICG WebGL &mdash; HW1</title>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<script type="text/javascript" src="./js/glMatrix-0.9.5.min.js"></script>
+<script type="text/javascript" src="./js/webgl-utils.js"></script>
+<link href="styles/style.css" rel="stylesheet" type="text/css">
+
+<script type="text/javascript">
+    // common variables
+    var gl;
+    var shaderProgram;
+
+    var mvMatrix = mat4.create();
+    var pMatrix  = mat4.create();
+    var lightPosition = vec3.create();
+    var lightColor = vec3.create();
+
+    var modelName = "Teapot";
+
+    var teapotVertexPositionBuffer;
+    var teapotVertexNormalBuffer;
+    var teapotVertexFrontColorBuffer;
+
+    var teapotMinX;
+    var teapotMinY;
+    var teapotMinZ;
+    var teapotMaxX;
+    var teapotMaxY;
+    var teapotMaxZ;
+    var scaleValue = 1.0;
+
+    var teapotAngle = 180;
+    var lastTime    = 0;
+
+    function initGL(canvas) {
+        try {
+            gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+            gl.viewportWidth  = canvas.width;
+            gl.viewportHeight = canvas.height;
+        } 
+        catch (e) {
+        }
+
+        if (!gl) {
+            alert("Could not initialise WebGL, sorry :-(");
+        }
+        gl.getExtension('OES_standard_derivatives');
+    }
+
+    function loadFile(path) {
+        var request = new XMLHttpRequest();
+        request.open("GET", path, false);
+        request.send(null);
+        if (request.status === 200) {
+            return request.responseText;
+        }
+        return "";
+    }
+
+    function getShader(gl, shaderScript, type) {
+        if (!shaderScript) {
+            return null;
+        }
+
+        var shader;
+        if (type == "fragment") {
+            shader = gl.createShader(gl.FRAGMENT_SHADER);
+        } 
+        else if (type == "vertex") {
+            shader = gl.createShader(gl.VERTEX_SHADER);
+        } 
+        else {
+            return null;
+        }
+
+        gl.shaderSource(shader, shaderScript);
+        gl.compileShader(shader);
+
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+
+        return shader;
+    }
+
+    function initShaders(shader_type) {
+        var fragmentShader = getShader(gl, loadFile("./shader/"+shader_type+".glslf"), "fragment");
+        var vertexShader   = getShader(gl, loadFile("./shader/"+shader_type+".glslv"), "vertex");
+
+        shaderProgram = gl.createProgram();
+        gl.attachShader(shaderProgram, vertexShader);
+        gl.attachShader(shaderProgram, fragmentShader);
+        gl.linkProgram(shaderProgram);
+
+        if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+            alert("Could not initialise shaders");
+        }
+
+        gl.useProgram(shaderProgram);
+
+        // Model
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+        shaderProgram.vertexFrontColorAttribute = gl.getAttribLocation(shaderProgram, "aFrontColor");
+        gl.enableVertexAttribArray(shaderProgram.vertexFrontColorAttribute);
+        shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+        gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+
+        // Uniform
+        shaderProgram.pMatrixUniform  = gl.getUniformLocation(shaderProgram, "uPMatrix");
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+
+        // Light
+        shaderProgram.lightPositionUniform = gl.getUniformLocation(shaderProgram, "uLightPosition");
+        shaderProgram.lightColorUniform = gl.getUniformLocation(shaderProgram, "uLightColor");
+        shaderProgram.lightEnableUniform = gl.getUniformLocation(shaderProgram, "uLightEnable");
+    }
+
+    function setMatrixUniforms() {
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
+    }
+
+    function setLightUniforms() {
+        var lightPositions = []
+        var lightColors = []
+        var lightEnables = []
+        for (var i=1; i<4; i++) {
+            lightPositions.push(parseFloat(document.getElementById("light" + i + "-x").value));
+            lightPositions.push(parseFloat(document.getElementById("light" + i + "-y").value));
+            lightPositions.push(parseFloat(document.getElementById("light" + i + "-z").value));
+            let picked_color = document.getElementById("light" + i + "-color").value;
+            const r = parseInt(picked_color.substr(1,2), 16) / 255.0;
+            const g = parseInt(picked_color.substr(3,2), 16) / 255.0;
+            const b = parseInt(picked_color.substr(5,2), 16) / 255.0;
+            lightColors.push(r);
+            lightColors.push(g);
+            lightColors.push(b);
+            lightEnables.push(Boolean(document.getElementById("light" + i + "-enable").checked)? 1.0 : 0.0);
+            // lightEnabledArray.push(Boolean(document.getElementById('lightPoint-' + i + '-enable').checked) ? 1.0 : 0.0);
+        }
+
+        gl.uniform3fv(shaderProgram.lightPositionUniform, lightPositions);
+        gl.uniform3fv(shaderProgram.lightColorUniform, lightColors);
+        gl.uniform1fv(shaderProgram.lightEnableUniform, lightEnables);
+    }
+
+    function degToRad(degrees) {
+        return degrees * Math.PI / 180;
+    }
+
+    function handleLoadedTeapot(teapotData) {
+        teapotVertexPositionBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexPositions), gl.STATIC_DRAW);
+        teapotVertexPositionBuffer.itemSize = 3;
+        teapotVertexPositionBuffer.numItems = teapotData.vertexPositions.length / 3;
+
+        // Find proper scale for this model
+        teapotMinX = teapotMaxX = teapotData.vertexPositions[0];
+        teapotMinY = teapotMaxY = teapotData.vertexPositions[1];
+        teapotMinZ = teapotMaxZ = teapotData.vertexPositions[2];
+
+        for(var i=3; i<teapotData.vertexPositions.length; i+=3) {
+            teapotMinX = (teapotMinX > teapotData.vertexPositions[i])? teapotData.vertexPositions[i]:teapotMinX;
+            teapotMinY = (teapotMinY > teapotData.vertexPositions[i+1])? teapotData.vertexPositions[i+1]:teapotMinY;
+            teapotMinZ = (teapotMinZ > teapotData.vertexPositions[i+2])? teapotData.vertexPositions[i+2]:teapotMinZ;
+
+            teapotMaxX = (teapotMaxX < teapotData.vertexPositions[i])? teapotData.vertexPositions[i]:teapotMaxX;
+            teapotMaxY = (teapotMaxY < teapotData.vertexPositions[i+1])? teapotData.vertexPositions[i+1]:teapotMaxY;
+            teapotMaxZ = (teapotMaxZ < teapotData.vertexPositions[i+2])? teapotData.vertexPositions[i+2]:teapotMaxZ;
+        }
+
+        var disX = teapotMaxX-teapotMinX;
+        var disY = teapotMaxY-teapotMinY;
+        var disZ = teapotMaxZ-teapotMinZ;
+
+        if(disX >= disY) {
+            if (disX >= disZ) {
+                scaleValue = 16.0 / disX;
+            }
+            else {
+                scaleValue = 16.0 / disZ;
+            }
+        }
+        else {
+            if (disY >= disZ) {
+                scaleValue = 16.0 / disY;
+            }
+            else {
+                scaleValue = 16.0 / disZ;
+            }
+        }
+
+
+        teapotVertexNormalBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexNormals), gl.STATIC_DRAW);
+        teapotVertexNormalBuffer.itemSize = 3;
+        teapotVertexNormalBuffer.numItems = teapotData.vertexNormals.length / 3;
+
+        teapotVertexFrontColorBuffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexFrontColorBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(teapotData.vertexFrontcolors), gl.STATIC_DRAW);
+        teapotVertexFrontColorBuffer.itemSize = 3;
+        teapotVertexFrontColorBuffer.numItems = teapotData.vertexFrontcolors.length / 3;
+    }
+
+    function loadTeapot(name) {
+        var request = new XMLHttpRequest();
+        request.open("GET", "./model/" + name + ".json");
+        request.onreadystatechange = function () {
+            if (request.readyState == 4) {
+                handleLoadedTeapot(JSON.parse(request.responseText));
+            }
+        }
+        request.send();
+    }
+
+    /*
+        TODO HERE:
+        add two or more objects showing on the canvas
+        (it needs at least three objects showing at the same time)
+    */
+    function drawScene() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        if (teapotVertexPositionBuffer   == null || 
+            teapotVertexNormalBuffer     == null || 
+            teapotVertexFrontColorBuffer == null) {
+            
+            return;
+        }
+
+        // Setup Projection Matrix
+        mat4.perspective(45, gl.viewportWidth / gl.viewportHeight, 0.1, 100.0, pMatrix);
+
+        // Set transformation options from html
+        var center = [-(teapotMaxX+teapotMinX)/2.0 * scaleValue, -(teapotMaxY+teapotMinY)/2.0 * scaleValue, -(teapotMaxZ+teapotMinZ)/2.0 * scaleValue];
+        var rotate_axis = [0,0,0];
+        var raxis_radios = document.getElementsByName("rotate-axis");
+        for (var i = 0, length = raxis_radios.length; i < length; i++) {
+            if (raxis_radios[i].checked) {
+                rotate_axis[i] = 1;
+                break;
+            }
+        }
+
+
+        // Setup Model-View Matrix
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [0, 0, -40]);
+        mat4.rotate(mvMatrix, degToRad(teapotAngle), rotate_axis);
+        mat4.translate(mvMatrix, center);
+        mat4.scale(mvMatrix, [scaleValue, scaleValue, scaleValue]);
+        // TODO: shear
+
+        setMatrixUniforms();
+        setLightUniforms();
+
+        // Setup teapot position data
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexPositionBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 
+                               teapotVertexPositionBuffer.itemSize, 
+                               gl.FLOAT, 
+                               false, 
+                               0, 
+                               0);
+
+        // Setup teapot front color data
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexFrontColorBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexFrontColorAttribute, 
+                               teapotVertexFrontColorBuffer.itemSize, 
+                               gl.FLOAT, 
+                               false, 
+                               0, 
+                               0);
+
+        // Setup teapot normal
+        gl.bindBuffer(gl.ARRAY_BUFFER, teapotVertexNormalBuffer);
+        gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, 
+                               teapotVertexNormalBuffer.itemSize, 
+                               gl.FLOAT, 
+                               false, 
+                               0, 
+                               0);
+
+        gl.drawArrays(gl.TRIANGLES, 0, teapotVertexPositionBuffer.numItems);
+
+        // Second teapot
+        // Setup Model-View Matrix
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [18, 0, -40]);
+        mat4.rotate(mvMatrix, degToRad(teapotAngle), rotate_axis);
+        mat4.translate(mvMatrix, center);
+        mat4.scale(mvMatrix, [scaleValue, scaleValue, scaleValue]);
+        // TODO: shear
+
+        setMatrixUniforms();
+
+        gl.drawArrays(gl.TRIANGLES, 0, teapotVertexPositionBuffer.numItems);
+
+        // Third teapot
+        // Setup Model-View Matrix
+        mat4.identity(mvMatrix);
+        mat4.translate(mvMatrix, [-18, 0, -40]);
+        mat4.rotate(mvMatrix, degToRad(teapotAngle), rotate_axis);
+        mat4.translate(mvMatrix, center);
+        mat4.scale(mvMatrix, [scaleValue, scaleValue, scaleValue]);
+        // TODO: shear
+
+        setMatrixUniforms();
+
+        gl.drawArrays(gl.TRIANGLES, 0, teapotVertexPositionBuffer.numItems);
+    }
+
+    function animate(rotate_enable) {
+        var timeNow = new Date().getTime();
+        if (lastTime != 0) {
+            var elapsed = timeNow - lastTime;
+            if(rotate_enable)
+                teapotAngle += 0.03 * elapsed;
+        }
+        
+        lastTime = timeNow;
+    }
+
+    function tick() {
+        requestAnimFrame(tick);
+        drawScene();
+
+        var rotate_enable = Boolean(document.getElementById("rotate-enable").checked)? true : false;
+        animate(rotate_enable);
+    }
+
+    var shader_type = "flat"
+    function setShader(type)
+    {
+        shader_type = type;
+        webGLStart()
+    }
+
+    function setModel(name) {
+        modelName = name;
+        webGLStart()
+    }
+
+    function webGLStart() {
+        var canvas = document.getElementById("ICG-canvas");
+        initGL(canvas);
+        initShaders(shader_type);
+        loadTeapot(modelName);
+
+        gl.clearColor(0.0, 0.2, 0.2, 1.0);
+        gl.enable(gl.DEPTH_TEST);
+
+        tick();
+    }
+
+    
+</script>
+</head>
+
+<body onload="webGLStart();">
+    <div id="content">
+        <div id="canvas">
+            <canvas id="ICG-canvas" style="border: none;" width="1280" height="720"></canvas>
+        </div>
+        <div id="settings">
+            <h3>Shader</h3>
+            <div id="shader-settings" class="options">
+                <button onclick="setShader('flat')">flat</button>
+                <button onclick="setShader('gouraud')">gouraud</button>
+                <button onclick="setShader('phong')">phong</button>
+            </div>
+            <h3>Light Settings</h3>
+            <div id="light-settings" class="options">
+                <table>
+                    <tr>
+                        <th>Light1 xyz:</th>
+                        <th><input type="text" id="light1-x" size="5" value="-20"> <input type="text" id="light1-y" size="5" value="15"> <input type="text" id="light1-z" size="5" value="-20"> <input type="checkbox" id="light1-enable" checked=true>enable</th>
+                    </tr>
+                    <tr>
+                        <th>Light1 color:</th>
+                        <th><input type="color" id="light1-color" value="#ffffff"></th>
+                    </tr>
+                    <tr>
+                        <th>Light2 xyz:</th>
+                        <th><input type="text" id="light2-x" size="5" value="15"> <input type="text" id="light2-y" size="5" value="-10"> <input type="text" id="light2-z" size="5" value="-25"> <input type="checkbox" id="light2-enable">enable</th>
+                    </tr>
+                    <tr>
+                        <th>Light2 color:</th>
+                        <th><input type="color" id="light2-color" value="#ffffff"></th>
+                    </tr>
+                    <tr>
+                        <th>Light3 xyz:</th>
+                        <th><input type="text" id="light3-x" size="5" value="0"> <input type="text" id="light3-y" size="5" value="0"> <input type="text" id="light3-z" size="5" value="-100"> <input type="checkbox" id="light3-enable">enable</th>
+                    </tr>
+                    <tr>
+                        <th>Light3 color:</th>
+                        <th><input type="color" id="light3-color" value="#ffffff"></th>
+                    </tr>
+                </table>
+            </div>
+            <h3>Models</h3>
+            <div id="model-settings" class="options">
+                <button onclick="setModel('Csie')">Csie</button>
+                <button onclick="setModel('Car_road')">Car_road</button>
+                <button onclick="setModel('Church_s')">Church_s</button>
+                <button onclick="setModel('Easter')">Easter</button>
+                <button onclick="setModel('Fighter')">Fighter</button>
+                <button onclick="setModel('Kangaroo')">Kangaroo</button>
+                </br>
+                <button onclick="setModel('Longteap')">Longteap</button>
+                <button onclick="setModel('Mercedes')">Mercedes</button>
+                <button onclick="setModel('Mig27')">Mig27</button>
+                <button onclick="setModel('Teapot')">Teapot</button>
+                <button onclick="setModel('Tomcat')">Tomcat</button>
+            </div>
+            <h3>Transformation</h3>
+            <div id="model-settings" class="options">
+                <h4><input type="checkbox" id="rotate-enable" checked> Rotation</h4>
+                axis: <input type="radio" id="x-raxis" name="rotate-axis">
+                <label for="x-raxis">x axis</label>
+                <input type="radio" id="y-raxis" name="rotate-axis" checked>
+                <label for="y-raxis">y axis</label>
+                <input type="radio" id="z-raxis" name="rotate-axis">
+                <label for="z-raxis">z axis</label>
+            </div>
+        </div>
+    </div>
+    
+</body>
+
+</html>
