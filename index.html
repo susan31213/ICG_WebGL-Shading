@@ -122,6 +122,26 @@
         shaderProgram.lightPositionUniform = gl.getUniformLocation(shaderProgram, "uLightPosition");
         shaderProgram.lightColorUniform = gl.getUniformLocation(shaderProgram, "uLightColor");
         shaderProgram.lightEnableUniform = gl.getUniformLocation(shaderProgram, "uLightEnable");
+
+        // UI
+        if(shader_type === "toon") {
+            console.log('is toon');
+            for (var i=2; i<=3; i++) {
+                var button = document.getElementById("light"+i);
+                document.getElementById("light"+i+"-enable").checked = false;
+                button.style.display = "none";
+            }
+        }
+        else {
+            for (var i=1; i<=3; i++) {
+                var button = document.getElementById("light"+i);
+                button.style.display = "inline";
+            }
+        }
+        
+        
+
+
     }
 
     function setMatrixUniforms() {
@@ -280,16 +300,13 @@
         var sheardir = document.getElementsByName("shear-dir");
         for (var i = 0, length = sheardir.length; i < length; i++) {
             if (sheardir[i].checked) {
-                console.log(sheardir[i].value);
                 if(sheardir[i].value != "none") {
                     var idx = parseInt(sheardir[i].value);
-                    shear[idx] = 0.5;
+                    shear[idx] = 0.1;
                 }
                 break;
             }
         }
-
-
 
         // Setup Model-View Matrix
         mat4.identity(mvMatrix);
@@ -299,10 +316,6 @@
         mat4.multiply(mvMatrix, shear);
         mat4.scale(mvMatrix, [initScaleValue * scaleValue, initScaleValue * scaleValue, initScaleValue * scaleValue]);
         mat4.translate(mvMatrix, center);
-        
-        // Setup Normal Matrix
-        // mat4.invert(nMatrix, mvMatrix);
-        mat4.transpose(nMatrix, nMatrix);
 
         setMatrixUniforms();
         setLightUniforms();
@@ -347,10 +360,6 @@
         mat4.scale(mvMatrix, [initScaleValue * scaleValue, initScaleValue * scaleValue, initScaleValue * scaleValue]);
         mat4.translate(mvMatrix, center);
         
-        // Setup Normal Matrix
-        // mat4.invert(nMatrix, mvMatrix);
-        mat4.transpose(nMatrix, nMatrix);
-
         setMatrixUniforms();
 
         gl.drawArrays(gl.TRIANGLES, 0, teapotVertexPositionBuffer.numItems);
@@ -365,10 +374,6 @@
         mat4.scale(mvMatrix, [initScaleValue * scaleValue, initScaleValue * scaleValue, initScaleValue * scaleValue]);
         mat4.translate(mvMatrix, center);
        
-        // Setup Normal Matrix
-        // mat4.invert(nMatrix, mvMatrix);
-        mat4.transpose(nMatrix, nMatrix);
-
         setMatrixUniforms();
 
         gl.drawArrays(gl.TRIANGLES, 0, teapotVertexPositionBuffer.numItems);
@@ -438,36 +443,46 @@
                 <button onclick="setShader('flat')">flat</button>
                 <button onclick="setShader('gouraud')">gouraud</button>
                 <button onclick="setShader('phong')">phong</button>
-                <button onclick="setShader('outline')">outline</button>
+                <button onclick="setShader('toon')">toon</button>
             </div>
             <h3>Light Settings</h3>
             <div id="light-settings" class="options">
-                <table>
-                    <tr>
-                        <th>Light1 xyz:</th>
-                        <th><input type="text" id="light1-x" size="5" value="-20"> <input type="text" id="light1-y" size="5" value="15"> <input type="text" id="light1-z" size="5" value="-20"> <input type="checkbox" id="light1-enable" checked=true>enable</th>
-                    </tr>
-                    <tr>
-                        <th>Light1 color:</th>
-                        <th><input type="color" id="light1-color" value="#ffffff"></th>
-                    </tr>
-                    <tr>
-                        <th>Light2 xyz:</th>
-                        <th><input type="text" id="light2-x" size="5" value="15"> <input type="text" id="light2-y" size="5" value="-10"> <input type="text" id="light2-z" size="5" value="-25"> <input type="checkbox" id="light2-enable">enable</th>
-                    </tr>
-                    <tr>
-                        <th>Light2 color:</th>
-                        <th><input type="color" id="light2-color" value="#ffffff"></th>
-                    </tr>
-                    <tr>
-                        <th>Light3 xyz:</th>
-                        <th><input type="text" id="light3-x" size="5" value="0"> <input type="text" id="light3-y" size="5" value="0"> <input type="text" id="light3-z" size="5" value="-100"> <input type="checkbox" id="light3-enable">enable</th>
-                    </tr>
-                    <tr>
-                        <th>Light3 color:</th>
-                        <th><input type="color" id="light3-color" value="#ffffff"></th>
-                    </tr>
-                </table>
+                <div id="light1">
+                    <table>
+                        <tr>
+                            <th>Light1 xyz:</th>
+                            <th><input type="text" id="light1-x" size="5" value="-20"> <input type="text" id="light1-y" size="5" value="15"> <input type="text" id="light1-z" size="5" value="-20"> <input type="checkbox" id="light1-enable" checked=true>enable</th>
+                        </tr>
+                        <tr>
+                            <th>Light1 color:</th>
+                            <th><input type="color" id="light1-color" value="#ffffff"></th>
+                        </tr>
+                    </table>
+                    </div>
+                <div id="light2">
+                    <table>
+                        <tr>
+                            <th>Light2 xyz:</th>
+                            <th><input type="text" id="light2-x" size="5" value="15"> <input type="text" id="light2-y" size="5" value="-10"> <input type="text" id="light2-z" size="5" value="-25"> <input type="checkbox" id="light2-enable">enable</th>
+                        </tr>
+                        <tr>
+                            <th>Light2 color:</th>
+                            <th><input type="color" id="light2-color" value="#ffffff"></th>
+                        </tr>
+                    </table>
+                </div>
+                <div id="light3">
+                    <table>
+                        <tr>
+                            <th>Light3 xyz:</th>
+                            <th><input type="text" id="light3-x" size="5" value="0"> <input type="text" id="light3-y" size="5" value="0"> <input type="text" id="light3-z" size="5" value="-100"> <input type="checkbox" id="light3-enable">enable</th>
+                        </tr>
+                        <tr>
+                            <th>Light3 color:</th>
+                            <th><input type="color" id="light3-color" value="#ffffff"></th>
+                        </tr>
+                    </table>
+                </div>
             </div>
             <h3>Models</h3>
             <div id="model-settings" class="options">
