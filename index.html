@@ -15,7 +15,7 @@
 
     var mvMatrix = mat4.create();
     var pMatrix  = mat4.create();
-    var nMatrix  = mat4.create();
+    var nvMatrix  = mat4.create();
     var lightPosition = vec3.create();
     var lightColor = vec3.create();
 
@@ -116,7 +116,7 @@
         // Uniform
         shaderProgram.pMatrixUniform  = gl.getUniformLocation(shaderProgram, "uPMatrix");
         shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
-        shaderProgram.normalMatrixUniform = gl.getUniformLocation(shaderProgram, "uNMatrix");
+        shaderProgram.nvMatrixUniform = gl.getUniformLocation(shaderProgram, "uNVMatrix");
 
         // Light
         shaderProgram.lightPositionUniform = gl.getUniformLocation(shaderProgram, "uLightPosition");
@@ -147,7 +147,7 @@
     function setMatrixUniforms() {
         gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix);
         gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix);
-        gl.uniformMatrix4fv(shaderProgram.normalMatrixUniform, false, nMatrix);
+        gl.uniformMatrix4fv(shaderProgram.nvMatrixUniform, false, nvMatrix);
     }
 
     function setLightUniforms() {
@@ -302,7 +302,7 @@
             if (sheardir[i].checked) {
                 if(sheardir[i].value != "none") {
                     var idx = parseInt(sheardir[i].value);
-                    shear[idx] = 0.1;
+                    shear[idx] = 0.5;
                 }
                 break;
             }
@@ -316,6 +316,9 @@
         mat4.multiply(mvMatrix, shear);
         mat4.scale(mvMatrix, [initScaleValue * scaleValue, initScaleValue * scaleValue, initScaleValue * scaleValue]);
         mat4.translate(mvMatrix, center);
+
+        mat4.inverse(mvMatrix, nvMatrix);
+        mat4.transpose(nvMatrix, nvMatrix);
 
         setMatrixUniforms();
         setLightUniforms();
@@ -359,6 +362,9 @@
         mat4.multiply(mvMatrix, shear);
         mat4.scale(mvMatrix, [initScaleValue * scaleValue, initScaleValue * scaleValue, initScaleValue * scaleValue]);
         mat4.translate(mvMatrix, center);
+
+        mat4.inverse(mvMatrix, nvMatrix);
+        mat4.transpose(nvMatrix, nvMatrix);
         
         setMatrixUniforms();
 
@@ -373,6 +379,9 @@
         mat4.multiply(mvMatrix, shear);
         mat4.scale(mvMatrix, [initScaleValue * scaleValue, initScaleValue * scaleValue, initScaleValue * scaleValue]);
         mat4.translate(mvMatrix, center);
+        
+        mat4.inverse(mvMatrix, nvMatrix);
+        mat4.transpose(nvMatrix, nvMatrix);
        
         setMatrixUniforms();
 

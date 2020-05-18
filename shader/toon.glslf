@@ -2,6 +2,7 @@ precision mediump float;
 
 uniform mat4 uMVMatrix;
 uniform mat4 uPMatrix;
+uniform mat4 uNVMatrix;
 uniform vec3 uLightPosition[3];
 uniform vec3 uLightColor[3];
 uniform float uLightEnable[3];
@@ -11,18 +12,17 @@ varying vec3 normal;
 varying vec4 fragcolor;
 
 void main(void) {    
-     float intensity = 0.0;
-     for (int i=0; i<3; i++) {
-          if(uLightEnable[i] == 0.0) {
-            continue;
-          }
-          vec3 lightDir = normalize(uLightPosition[i] - mvVertex);
-	     intensity += dot(lightDir, normalize(mat3(uMVMatrix) * normal));
+	float intensity = 0.0;
+	for (int i=0; i<3; i++) {
+		if(uLightEnable[i] == 0.0) {
+			continue;
+		}
+		vec3 lightDir = normalize(uLightPosition[i] - mvVertex);
+		intensity += dot(lightDir, normalize(mat3(uNVMatrix) * normal));
 
-
-     }
+	}
      
-     float level = 1.0;
+    float level = 1.0;
 	if (intensity > 0.95)
 		level = 1.0;
 	else if (intensity > 0.5)

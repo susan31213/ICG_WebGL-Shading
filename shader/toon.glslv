@@ -16,7 +16,7 @@ varying vec4 fragcolor;
 
 void main(void) {
     mvVertex = (uMVMatrix * vec4(aVertexPosition, 1.0)).xyz;
-    normal = aVertexNormal;
+    normal = normalize(aVertexNormal);
     fragcolor = vec4(aFrontColor, 1.0);
     
     gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
